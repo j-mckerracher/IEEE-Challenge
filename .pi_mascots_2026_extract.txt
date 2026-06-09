@@ -1,0 +1,491 @@
+Beyond Unified Schemas: Why Zero-Shot Cross-Cluster
+Workload Transfer Fails and What It Takes to Make HPC
+
+                      Comparisons Defensible
+
+                    Joshua McKerracher                                                                           Saurabh Bagchi
+
+                         jmckerra@purdue.edu                                                                         Purdue University
+                            Purdue University                                                                 West Lafayette, Indiana, USA
+
+                     West Lafayette, Indiana, USA                                                                   sbagchi@purdue.edu
+
+Abstract                                                                                       to Make HPC Comparisons Defensible. In Proceedings of Conference Name,
+                                                                                               Date, Year, City, Country. ACM, New York, NY, USA, 7 pages. https://doi.
+Cross-cluster workload comparison is essential for capacity plan-                              org/XXXXXXX.XXXXXXX
+ning and system procurement, yet no published study has empiri-
+cally validated whether predictive models trained on one HPC clus-                             1 Introduction
+ter can generalize to another. We present FRESCO v2, a provenance-
+rich dataset extending the original FRESCO schema from 19 to                                   High-performance computing centers routinely make operational
+65 columns across three production clusters spanning 75 months.                                decisions--capacity planning, hardware procurement, scheduling
+Using this dataset, we conduct an 84-experiment investigation                                  policy adjustments--that would benefit from comparing workload
+proving that zero-shot cross-cluster memory prediction fails com-                              behavior across clusters. When a center considers upgrading from
+pletely, yielding 2 values as low as -21 due to fundamental domain                             one system generation to the next, or when a funding agency eval-
+shifts. Even under best-case conditions--hardware regime matching,                             uates proposals from different institutions, the ability to say "jobs
+overlap-aware cohort selection, and unsupervised domain adapta-                                of type X consume Y% more memory on Cluster A than on Cluster B"
+tion via CORAL and quantile mapping--transfer remains negative                                 would be enormously valuable. Yet such comparisons are rarely
+or unstable. We further demonstrate that few-shot calibration with                             attempted with empirical rigor, because the datasets, measurement
+up to 500 labeled target examples and four distinct strategies (out-                           semantics, and analytical frameworks required to support them
+put recalibration, fine-tuning, stacking, and target-only baselines)                           have not existed.
+fails to outperform the zero-shot reference, with the best few-shot
+result (2 = 0.076) still falling below zero-shot (2 = 0.107). Because                             The growing availability of public HPC workload datasets--
+model transfer is unviable under any tested condition, we propose                              including FRESCO [10], the Atlas cluster trace [1], the CFDR failure
+a Local Telemetry Blueprint that defines the minimal data inputs                               dataset [14], and Google's Borg traces [12]--naturally raises the
+and training methodology required for HPC centers to build robust,                             question of whether a predictive model trained on one cluster's
+site-specific predictive models. All 84 experiment configurations,                             historical data can simply be transferred to another. If so, a well-
+code, and reproducibility artifacts are publicly available.                                    resourced center could train a memory or runtime prediction model
+                                                                                               once, and smaller centers could deploy it without collecting exten-
+CCS Concepts                                                                                   sive local telemetry. The appeal of such zero-shot transfer is obvious:
+                                                                                               it promises to democratize operational intelligence across the HPC
+· Computer systems organization  Dependable and fault-                                         ecosystem.
+tolerant systems and networks; · Computing methodologies
+ Machine learning.                                                                                However, our baseline experiments demonstrate that this as-
+                                                                                               sumption is empirically false. When a Ridge regression model
+Keywords                                                                                       trained on Anvil (a modern 1,000-node AMD EPYC cluster at Pur-
+                                                                                               due) is naively evaluated on Conte (a 580-node Intel cluster from
+high-performance computing, cross-cluster transfer, domain shift,                              the same institution), cross-cluster memory prediction yields 2 =
+workload comparison, FRESCO dataset, measurement provenance,                                   -9.31 (95% CI: [-10.34, -8.53]); the reverse direction produces
+domain adaptation                                                                              2 = -4.33 (95% CI: [-4.63, -4.04]). These are not merely weak
+                                                                                               predictions--they are catastrophically worse than simply predict-
+ACM Reference Format:                                                                          ing the target cluster's mean, indicating systematic miscalibration
+Joshua McKerracher and Saurabh Bagchi. 20XX. Beyond Unified Schemas:                           driven by fundamental differences in how memory is measured,
+Why Zero-Shot Cross-Cluster Workload Transfer Fails and What It Takes                          what hardware exists, and what workloads run on each system.
+
+Permission to make digital or hard copies of all or part of this work for personal or             This catastrophic failure is driven by three distinct phenomena
+classroom use is granted without fee provided that copies are not made or distributed          that prior datasets, including the original FRESCO v1 release, lacked
+for profit or commercial advantage and that copies bear this notice and the full citation      the measurement provenance to diagnose. First, covariate shift [21]:
+on the first page. Copyrights for components of this work owned by others than the             the feature distributions across clusters are nearly non-overlapping
+author(s) must be honored. Abstracting with credit is permitted. To copy otherwise, or         (partition Kolmogorov-Smirnov distance [9] KS = 1.00, node type
+republish, to post on servers or to redistribute to lists, requires prior specific permission  KS = 0.999), meaning the source model has never seen inputs re-
+and/or a fee. Request permissions from permissions@acm.org.                                    sembling the target domain (Figure 1a). Second, conditional shift
+Conference 20XX, City, Country                                                                 (Figure 1b): even when we restrict analysis to hardware-matched
+© 20XX Copyright held by the owner/author(s). Publication rights licensed to ACM.
+ACM ISBN 978-X-XXXX-XXXX-X/20XX/XX
+https://doi.org/XXXXXXX.XXXXXXX
+Conference 20XX, Date, Year, City, Country                               McKerracher and Bagchi
+
+regimes where features overlap, the mapping from job characteris-        2.2 Resource Prediction in HPC
+tics to memory consumption differs fundamentally--Anvil's cgroup-
+based memory accounting includes page cache while Conte's RSS-           Runtime prediction has been studied extensively in the HPC sched-
+based measurement does not, creating a non-constant, application-        uling literature. Smith et al. [16] demonstrated that machine learn-
+dependent offset [11]. Third, era shift (Figure 1c): the clusters span   ing models trained on historical job data can predict queue wait
+different time periods (Conte: 2015­2017, Anvil: 2022­2023) with         times and improve scheduler performance. Tsafrir et al. [18] showed
+different user communities, software stacks, and workload compo-         that system-generated runtime predictions outperform user esti-
+sitions.                                                                 mates for backfill scheduling, achieving significant improvements
+                                                                         in system utilization. Gaussier et al. [5] applied random forests
+   In this paper, we present three core contributions. (1) FRESCO v2,    and gradient boosting to runtime prediction, demonstrating that
+a provenance-rich dataset extending the original 19-column schema        machine learning approaches consistently outperform heuristic
+to 65 columns with explicit hardware context, normalized memory          methods. Rodrigo et al. [13] characterized workload patterns at
+fractions, and documented measurement semantics across 20.9 mil-         NERSC, revealing systematic differences in resource usage across
+lion jobs from three clusters. (2) Empirical proof that transfer         user communities and application domains.
+fails: through 84 controlled experiments spanning zero-shot trans-
+fer, overlap-aware regime matching, unsupervised domain adap-               However, memory prediction has received far less attention de-
+tation (CORAL, quantile mapping), and few-shot calibration with          spite its critical operational importance. Memory over-allocation
+up to 500 labeled target examples, we demonstrate that no tested         wastes capacity, while under-allocation causes out-of-memory kills
+approach produces reliable cross-cluster memory prediction. (3) A        that lose hours of computation. Li et al. [8] characterized power and
+Local Telemetry Blueprint that defines the minimal feature set,          energy use on Perlmutter but noted that memory behavior is poorly
+preprocessing, and training methodology required for HPC cen-            understood relative to compute metrics. Peng et al. [11] revealed
+ters to build robust site-specific models, achieving 2 = 0.32 on         hidden costs of memory management in HPC systems, demon-
+temporal hold-out splits.                                                strating that memory accounting varies significantly across system
+                                                                         software stacks--precisely the measurement non-equivalence that
+2 Background & Related Work                                              our work quantifies across clusters. Critically, all of these studies
+                                                                         operate within a single system; none attempts to transfer predictive
+2.1 HPC Workload Datasets                                                models between clusters with different hardware, software, and
+                                                                         measurement infrastructure.
+The HPC community has produced several important public work-
+load datasets, but none provides the combination of cross-institutional  2.3 Domain Adaptation and Transfer Learning
+scope, per-job resource telemetry, and explicit measurement prove-
+nance required for rigorous transfer studies. The Parallel Workloads     In broader machine learning contexts, unsupervised domain adapta-
+Archive [4] collects sanitized scheduler logs from dozens of sys-        tion is frequently used to bridge the gap between different data dis-
+tems spanning two decades, enabling foundational research on job         tributions. Correlation Alignment (CORAL) [17] aligns source and
+scheduling, but records only submission metadata (arrival time,          target feature covariances; importance weighting re-weights source
+requested resources, runtime) without any performance telemetry          samples to match target marginals; and few-shot calibration [20]
+such as memory consumption, CPU utilization, or I/O rates. The           uses a small number of labeled target examples to recalibrate a
+Grid Workloads Archive [6] extends this to distributed grid environ-     pre-trained model. These techniques have demonstrated success in
+ments but similarly lacks node-level resource measurements. The          computer vision [21] and natural language processing, where the
+Atlas cluster trace [1] provides scheduler logs from a mid-scale clus-   underlying generative process is similar across domains and the
+ter and importantly documents workload diversity across system           primary challenge is distribution shift in surface statistics.
+configurations, but does not include per-job memory or CPU teleme-
+try. The Computer Failure Data Repository (CFDR) [14] focuses               Ben-David et al. [2] provide the theoretical foundation for un-
+on hardware failure events rather than job-level resource usage.         derstanding when transfer can and cannot work: the target error
+Google's Borg traces [12] offer unprecedented scale and include          is bounded by the source error plus a divergence term between
+resource usage data, but describe a proprietary cloud scheduling         domains plus the ideal joint error--the error of the best hypothesis
+environment with container-based isolation that differs fundamen-        on both domains simultaneously. When the labeling functions gen-
+tally from shared-node academic HPC. TACC Stats [3] provides             uinely disagree (i.e., the same input maps to fundamentally different
+fine-grained per-node performance counters from Stampede, but is         outputs in source and target), this ideal joint error is irreducibly
+limited to a single institution. The original FRESCO dataset [10] was    large and no amount of source data can help. Our HPC setting
+the first to unify job accounting and performance telemetry across       triggers exactly this condition: a job requesting 4 cores for 2 hours
+three academic clusters, but its 19-column schema did not capture        may consume 8 GB of RSS-measured memory on Conte but report
+the hardware metadata (node memory capacity, GPU configuration,          45 GB of cgroup-measured memory on Anvil, not because the job
+measurement methodology) necessary to normalize memory met-              behaves differently, but because "memory" is defined differently.
+rics across heterogeneous systems. Without knowing how memory
+was measured on each cluster--whether the metric includes page           2.4 Transfer Learning for Configurable Systems
+cache, what sampling interval was used, or what aggregation rule
+was applied--any cross-site comparison of raw memory values is           Recent work on transfer learning for systems performance has
+meaningless.                                                             explored whether models trained on one hardware platform can
+                                                                         predict performance on another. Jamshidi et al. [7] demonstrated
+                                                                         that transfer learning can improve performance prediction for
+Beyond Unified Schemas: Why Zero-Shot Cross-Cluster Workload Transfer Fails and What It Takes to Make HPC Comparisons DefeCnosnibfleerence 20XX, Date, Year, City, Country
+
+highly configurable software, where the configuration space is          Table 1: Cluster characteristics. Memory measurement meth-
+shared across environments and only the performance response            ods differ fundamentally across clusters, creating the condi-
+surface changes shape. Siegmund et al. [15] built performance-          tional shift that prevents model transfer.
+influence models that decompose system performance into con-
+tributions from individual configuration options, providing inter-      Institution         Conte    Stampede       Anvil
+pretable transfer across environments where the same options ex-        CPU
+ist. Valov et al. [19] specifically studied transferring performance                       Purdue      TACC        Purdue
+models across hardware environments, finding that transfer works        Cores/node       Intel Xeon  Intel Xeon  AMD EPYC
+when the hardware change primarily scales performance (e.g., faster     RAM/node (GB)    E5-2660 v3  E5-2680 v2
+CPU  proportionally faster execution) rather than fundamentally         Nodes                                        7763
+altering the performance landscape.                                     Time period           20          16          128
+                                                                        Job records           64          32          256
+   However, the rigid, hardware-bound nature of HPC telemetry           Scheduler             580      6,400+        1,000
+creates a qualitatively different challenge. Unlike software configu-   Memory metric    2015­2017   2013­2018   2022­2023
+ration tuning, where the configuration space is shared and only the     Includes cache?     10.8M       8.7M         1.4M
+response surface changes, HPC memory measurement is definition-         Collection       PBS/Torque    SLURM       SLURM
+ally tied to the collection infrastructure: a job that uses 10 GB of                      RSS only    Custom       cgroups
+RSS on Conte may report 50 GB on Anvil simply because Anvil's                                 No         Yes          Yes
+cgroup accounting includes the filesystem page cache. This is not a                      TACC Stats   Per-node      Native
+distributional shift that can be corrected by aligning covariances                        (monthly)   monitors   accounting
+or re-weighting samples--it is a semantic shift in what the label
+means, precisely the scenario where Ben-David et al.'s [2] ideal        nhosts), which expresses peak memory usage as a fraction of avail-
+joint error term becomes large. Our experiments demonstrate that        able node capacity. This normalization is essential because raw
+CORAL produces catastrophic numerical instability (2 = -46,520)         memory values are not comparable: Anvil nodes have 256 GB of
+when applied to HPC memory features, and that even few-shot             RAM while Conte nodes have 64 GB, so identical fractional us-
+calibration with 500 labeled target examples fails to outperform a      age produces a 4× difference in absolute values. Beyond capacity
+zero-shot baseline. These results establish that cross-cluster HPC      normalization, we introduce companion metadata documenting
+transfer is a qualitatively harder problem than the distributional      how memory was measured on each cluster. A clusters.json
+shifts addressed by standard domain adaptation.                         manifest records the collection method (slurm_cgroup_native
+                                                                        for Anvil, tacc_stats_monthly for Conte, tacc_stats_custom
+3 FRESCO v2 & Measurement Provenance                                    for Stampede), whether the metric includes page cache (true for
+                                                                        Anvil and Stampede, false for Conte), the source unit (GB, kilo-
+To systematically investigate cross-cluster transferability, we devel-  bytes, or bytes), and the aggregation rule (max per node, then max
+oped FRESCO v2, expanding the original 19-column schema [10]            across nodes--verified consistent across all three clusters via multi-
+to 65 columns organized into nine categories: job identity (6 cols),    node regression analysis with slopes near zero). This metadata
+hardware context (10 cols), time fields (12 cols), resource alloca-     reveals that the 9.1× raw memory offset between Conte and Anvil
+tion (6 cols), memory metrics (11 cols), CPU metrics (6 cols), I/O      (log-scale offset +2.21) is primarily driven by Conte's exclusion of
+metrics (4 cols), job completion status (7 cols), and user accounting   page cache from its RSS-based measurement, an insight that was
+(3 cols). The dataset encompasses 20.9 million job records from three   invisible in v1.
+production clusters spanning 75 months: Conte at Purdue Univer-
+sity (10.8M records, 2015­2017), Stampede at the Texas Advanced            Beyond the data itself, we introduce a workload comparability
+Computing Center (8.7M records, 2013­2018), and Anvil at Purdue         framework designed to explicitly diagnose the hidden data shifts
+University (1.4M records, 2022­2023). Of the 65 columns, 48 are         that derail machine learning models in production. The frame-
+required (present for every job) and 17 are nullable (may be absent     work has three components. First, a hardware-based workload tax-
+when a cluster's collection infrastructure does not support the met-    onomy classifies jobs into regimes based on GPU allocation and
+ric). Each cluster required a dedicated extraction pipeline--Anvil      node memory capacity: cpu_standard (GPU count  0, node mem-
+uses modern SLURM cgroup accounting, Conte relies on monthly            ory < 512 GB), cpu_largemem, gpu_standard, gpu_largemem, and
+TACC Stats with PBS/Torque batch records, and Stampede requires         unknown. Second, propensity-based overlap matching trains a lo-
+reconstructing job-level metrics from 6,172 individual per-node         gistic regression domain classifier on the safe feature set to esti-
+monitoring files. The unified output is stored in Snappy-compressed     mate  (domain = source | x); only jobs with propensity scores in
+Parquet files partitioned by cluster, year, and month. Table 1 sum-     the band [0.2, 0.8] are retained for cross-cluster analysis, ensuring
+marizes the hardware and collection characteristics of the three        that comparisons are restricted to regions of genuine covariate
+clusters.                                                               overlap [21]. Third, mandatory shift diagnostics report the domain
+                                                                        classifier AUC (a measure of overall separability), target coverage
+   A critical addition in v2 is the normalization of hardware metrics,  percentage (the fraction of target jobs in the overlap band), and
+which ensures that resource requests and limits are comparable          per-feature Kolmogorov-Smirnov distances [9] within the overlap
+across vastly different node architectures. The key derived metric is   region. Together, these diagnostics make the degree of compara-
+peak_memory_fraction = peak_memory_gb / (node_memory_gb×                bility transparent, preventing researchers from making defensible-
+                                                                        sounding claims on non-overlapping populations.
+Conference 20XX, Date, Year, City, Country                                                                McKerracher and Bagchi
+
+                                                                      Table 2: Summary of 84 cross-cluster transfer experiments
+                                                                      (AnvilConte, hardware_cpu_standard regime). All target 2
+
+                                                                      values are for peak_memory_fraction prediction in log space.
+
+                                                                      Experimental Track         Exp IDs Best 2 Worst 2
+
+                       [PLACEHOLDER]                                  Naive baseline (no matching) 015     -4.33   -21.3
+Three-panel diagram: covariate shift, conditional shift, era          Regime-matched (4 seeds) 044­051    +0.088  -2.103
+                                                                      Dense sampling (600K rows) 052­055  -0.105  -0.882
+                                 shift
+
+                                                                      Alloc-only + Huber         056­061 -0.649 -1.572
+
+                                                                      Frozen universe 1 (no queue) 062­069 +0.111 +0.107
+
+                                                                      Frozen universe 2 (no queue) 070­074 -0.006 -0.099
+
+                                                                      Runtime-only ablation      075­078 +0.050 -1.609
+
+                                                                      CORAL adaptation           079­082 -0.061 -46,521
+
+                                                                      Quantile-output adaptation 083­084 -0.029 -0.103
+
+                                                                      Few-shot calibration (v4)  --       +0.076  -0.110
+                                                                                                          +0.646  +0.493
+Figure 1: The three types of domain shift that prevent cross-         Within-cluster (reference) 015
+cluster HPC model transfer. (a) Covariate shift: feature dis-
+
+tributions are nearly non-overlapping (KS = 1.0 for parti-
+
+tion). (b) Conditional shift: identical features map to different
+
+memory outcomes because of measurement non-equivalence                partition encoding shows KS = 1.00 (completely non-overlapping),
+(cgroups vs. RSS). (c) Era shift: clusters span different time
+periods with different workload compositions.                         node type shows KS = 0.999, and log-transformed core counts show
+
+                                                                      KS = 0.88. For reference, within-cluster prediction is viable: Conte
+                                                                      achieves 2 = 0.646 (CI: [0.604, 0.685]) and Anvil achieves 2 =
+
+4 The Illusion of Transfer: 84 Experiments                            0.493 (CI: [0.446, 0.536]), confirming that the prediction task itself
+4.1 Experimental Setup                                                is not intractable. Across all 84 permutations--spanning different
+                                                                      source-target pairs, hardware regimes, feature subsets, sampling
+
+Using FRESCO v2, we conducted a systematic 84-experiment inves-       densities, adaptation methods, and few-shot calibration strategies--
+tigation into zero-shot cross-cluster memory prediction, organized    the highest cross-cluster 2 achieved was +0.11 on a single frozen
+into three phases [10]: feature availability analysis (identifying    universe, with the vast majority producing negative values ranging
+safe features with 0% cross-cluster missingness), overlap-aware       from -0.03 to -46,520. Table 2 summarizes the key experimental
+regime matching (constructing comparable cohorts), and trans-         tracks and their outcomes.
+
+fer modeling (training on the source cluster and evaluating on        4.3 Regime Matching and Stabilization
+the target). All experiments predict peak_memory_fraction using
+
+Ridge regression on log( + 1)-transformed features, with 1,000-       Even when employing best-case conditions--hardware regime match-
+
+iteration bootstrap confidence intervals. We chose Ridge regression   ing, frozen sampling plans, and the full battery of methodological
+
+deliberately: it is a well-understood linear model that serves as a   refinements--the models fail to generalize reliably. Restricting to the
+
+lower bound on what more complex models could achieve, and            hardware_cpu_standard regime and applying propensity-based
+
+its strong within-cluster performance (2 = 0.65) confirms that        overlap matching with the safe feature set, our initial experiment
+
+the feature set contains genuine predictive signal. The safe fea-     (EXP-044/045) achieved a target 2 = 0.088 (CI: [0.056, 0.113]) with
+
+ture set--determined by requiring 0% missingness across all three     domain classifier AUC of 0.94 and 33% target coverage--a seemingly
+
+clusters from 52 candidate columns--comprises ncores, nhosts,         promising result. However, repeating the identical configuration
+
+timelimit_sec, runtime_sec, queue_time_sec, and runtime_fractionw. ith three additional random seeds revealed devastating instability:
+All experiments focus on the AnvilConte direction within the
+                                                                      seed 2024 yielded 2 = -0.035, seed 2025 yielded 2 = -2.103, and
+hardware_cpu_standard regime, where the potential for transfer
+                                                                      seed 2026 yielded 2 = -0.288. The positive result on seed 1337
+is highest due to both clusters having standard CPU nodes.
+                                                                      was an outlier. Deeper analysis revealed that 85% of source jobs
+
+4.2 Naive Baseline                                                    and 91% of target jobs in the overlap cohort appear in only one of
+                                                                      the four seeds--the propensity-based matching is so sensitive to
+
+When a model trained on one cluster is naively evaluated on another   sampling variation that entirely different populations are compared
+
+without any regime matching, the predictive signal completely         each time. We systematically attempted to stabilize these results: re-
+
+collapses. Our baseline experiment (EXP-015) trains on all available  moving queue_time_sec (the dominant within-overlap mismatch,
+
+features from the source cluster and evaluates on a random sample     mean KS = 0.711) and using frozen sampling plans produced con-
+                                                                      sistent positive results on one frozen universe (2  0.107 across
+from the target. The results are catastrophic: AnvilConte yields
+2 = -9.31 (95% CI: [-10.34, -8.53]), ConteAnvil yields 2 =            all four seeds) but negative results on a second frozen universe
+                                                                      (2 = -0.064 to -0.099). Increasing sample density from 300K to
+-4.33 (95% CI: [-4.63, -4.04]), and directions involving Stampede     600K rows per cluster made the baseline worse (2 = -0.882 on the
+fare even worse, with StampedeAnvil producing 2 = -21.3 (95%
+
+CI: [-21.5, -21.2])--predictions that are 22× worse than simply       previously positive seed). Simplifying to allocation-only features
+
+predicting the target cluster's mean. Covariate shift is extreme: (ncores, nhosts, timelimit_sec) with a robust HuberRegressor
+Beyond Unified Schemas: Why Zero-Shot Cross-Cluster Workload Transfer Fails and What It Takes to Make HPC Comparisons DefeCnosnibfleerence 20XX, Date, Year, City, Country
+
+broadened overlap coverage to 83% but produced uniformly nega-             Table 3: Few-shot calibration results (2, mean over 3 seeds).
+tive results (2 = -0.649 to -1.495).                                       The zero-shot baseline (2 = 0.107) outperforms all few-shot
+
+4.4 Unsupervised Domain Adaptation                                         strategies at every sample size. Full-target uses all available
+
+Having exhausted feature engineering and matching strategies,              target labels.
+we turned to unsupervised domain adaptation, which also failed
+universally. CORAL alignment [17] produced a catastrophic 2 =              Strategy                       =25    =100  =500   Full-target
+-46,520 on the first frozen universe due to numerical instability
+in the covariance alignment step; increasing the regularization            Output recalibration          0.011  0.021  0.035        --
+parameter to 10-3 reduced this to 2 = -59.65, still completely             Fine-tuning                   0.032  0.048  0.061        --
+unusable. On the second universe, CORAL produced 2 = -0.061,               Stacking                      0.041  0.076  0.068        --
+essentially unchanged from the non-adapted baseline of -0.064.             Target-only                   0.029  0.075  0.072      0.137
+Quantile-output matching [21], which maps source predictions to
+match the target distribution's quantiles, reversed the previously         Zero-shot (reference)                       0.107
+positive result on the first universe (from +0.107 to -0.103) while        Within-cluster (upper bound)                0.646
+slightly improving the second universe (from -0.064 to -0.029,
+still negative). No adaptation method produced a reliable positive
+transfer result across both frozen universes.
+
+4.5 Few-Shot Calibration                                                                               [PLACEHOLDER]
+                                                                                      Bar chart: Within-cluster 2 vs. cross-cluster 2
+Finally, recognizing that zero-shot transfer may be too ambitious,
+we extended our investigation to few-shot calibration [20], allowing                             across all experimental tracks
+  {10, 25, 50, 100, 200, 500} labeled target examples for model
+calibration. We tested four strategies: (1) output recalibration, fitting  Figure 2: Comparison of target 2 across experimental tracks.
+a linear correction ^cal = ^ + using  target labels; (2) fine-tuning,      Within-cluster models achieve 2 = 0.49­0.65, while even the
+retraining Ridge regression on the union of source data and                best cross-cluster result (2 = +0.11 on a single frozen uni-
+upweighted target examples; (3) stacking, using source predictions         verse) is an order of magnitude weaker. Most cross-cluster
+alongside raw features as input to a second-stage model trained on         experiments produce severely negative 2, indicating predic-
+ target labels; and (4) a target-only baseline training exclusively on     tions worse than the target mean.
+ target labels. Across all strategies, sample sizes, and three random
+seeds (1337, 2024, 2025), no configuration outperformed the zero-shot      temporal data splitting requirements, and (4) validation results on
+baseline of 2 = 0.107. The best few-shot result was stacking at            hold-out data.]
+ = 100 with a mean 2 = 0.076--still 0.031 below zero-shot.
+Output recalibration at  = 100 achieved only 2 = 0.021, fine-              6 Discussion
+tuning reached 2 = 0.048, and the target-only baseline matched             6.1 Why Linear Models?
+stacking at 2 = 0.075. Even the full-target upper bound (training
+on all available target labels) achieved only 2 = 0.137, confirming        A natural objection to our negative results is that Ridge regres-
+that the feature set has inherently limited predictive power for cross-    sion is too simple--perhaps a gradient boosting ensemble or deep
+cluster memory prediction. The source data, rather than providing          neural network could capture the complex, nonlinear relationships
+a helpful initialization, appears to actively harm performance by          between job features and cross-cluster memory behavior. We ar-
+encoding source-specific memory semantics that resist correction.          gue that model complexity is orthogonal to the fundamental failure
+Table 3 provides detailed results for the most informative sample          mode we have identified. First, Ridge regression achieves 2 = 0.646
+sizes.                                                                     within-cluster on Conte and 2 = 0.493 on Anvil, demonstrating
+                                                                           that the feature set contains substantial predictive signal when
+5 The Local Telemetry Blueprint                                            source and target share measurement semantics. The cross-cluster
+                                                                           collapse from +0.65 to -21 is not a capacity gap--it is a domain gap.
+Since our experiments definitively prove that cross-cluster model          Second, the theoretical analysis of Ben-David et al. [2] shows that
+transfer is unviable under any tested condition--zero-shot, regime-        when the labeling functions genuinely disagree across domains,
+matched, adaptation-corrected, or few-shot calibrated--HPC cen-
+ters must rely on locally trained predictive models built from their
+own operational telemetry.
+
+   [This section is intentionally left blank. The research defining the
+
+minimal telemetry requirements, optimal preprocessing pipeline, and
+
+recommended training methodology for site-specific memory predic-
+
+tion models is ongoing. The completed section will specify: (1) the
+
+consensus feature set identified across all tested clusters, (2) manda-
+tory preprocessing steps including log( + 1) transformations, (3)
+Conference 20XX, Date, Year, City, Country                                       McKerracher and Bagchi
+
+Table 4: Minimal Viable Telemetry Blueprint (preliminary).                       6.3 Implications for HPC Standardization
+These features were identified as consistently available and
+predictively useful across all three clusters. Final feature                     Our results have direct implications for ongoing standardization ef-
+ranking and validation are pending.                                              forts in HPC monitoring. For cross-cluster memory prediction to be-
+                                                                                 come viable, the community would need to agree on: (1) a standard-
+Feature           Source Rationale                                               ized memory accounting method (e.g., always cgroup memory.max_usage_in_byte
+                                                                                 always including page cache), (2) a common temporal resolution
+timelimit_sec     Scheduler  User's walltime estimate; captures                  for sampling (e.g., 10-second intervals with max aggregation), and
+runtime_sec       Scheduler  90% of runtime signal                               (3) documented cache inclusion/exclusion policies. Without such
+ncores            Scheduler  Actual execution duration; proxy for                standardization, each cluster's "memory" metric is effectively a dif-
+nhosts            Scheduler  computational intensity                             ferent variable, and transferring models between them is like train-
+cpu_user_sec      Telemetry  Core allocation; correlates with mem-               ing a temperature model on Fahrenheit data and deploying it on
+runtime_fraction  Derived    ory footprint for parallel codes                    Celsius data without a conversion formula. The FRESCO v2 prove-
+                             Node count; distinguishes single- vs.               nance metadata (clusters.json) provides a template for what
+                             multi-node memory patterns                          such standardization would look like: every deployment would
+                             Actual compute time; separates I/O-                 document its measurement method, cache policy, source units, and
+                             bound from CPU-bound jobs                           aggregation rules, making cross-site comparability an explicit engi-
+                             = runtime_sec/timelimit_sec; re-                    neering decision rather than an implicit assumption.
+                             source utilization efficiency
+                                                                                 6.4 Threats to Validity
+Preprocessing: Apply log( + 1) to all continuous features and target.
+Splitting: Use strict temporal splits, not random; retrain on hardware changes.  Several limitations constrain the scope of our conclusions. Predic-
+                                                                                 tion target. We focus exclusively on peak memory fraction. While
+the ideal joint error term dominates regardless of hypothesis class              memory is operationally important and exhibits the most severe
+richness. In our setting, the "labeling function" is the physical mea-           measurement non-equivalence, other targets (runtime, I/O through-
+surement process: cgroup-based memory accounting (Anvil) and                     put, power consumption) may behave differently under transfer--
+RSS-based accounting (Conte) produce fundamentally different val-                particularly runtime, which is less sensitive to measurement method-
+ues for the same underlying job behavior. No amount of model                     ology. Model family. Although we argue that the failure is structural
+capacity can learn a mapping from one measurement semantics to                   rather than model-dependent, we have not tested deep learning,
+another without explicit knowledge of the measurement process--                  Gaussian processes, or ensemble methods. These could potentially
+which is precisely what our provenance metadata provides but                     learn more robust feature representations, though the Ben-David
+what no learned model can infer from features alone.                             bound suggests the improvement ceiling is low when labeling func-
+                                                                                 tions disagree. Adaptation methods. We tested CORAL and quantile
+6.2 Generalizability Beyond Three Clusters                                       mapping but did not test more recent approaches such as adversarial
+                                                                                 domain adaptation or optimal transport. However, these methods
+Our experiments cover three clusters from two institutions. While                also assume that a good joint hypothesis exists--an assumption
+this is the broadest cross-cluster transfer study in the HPC liter-              violated in our setting. Cluster diversity. Three clusters, while rep-
+ature, it raises the question of whether our negative conclusions                resenting different eras, hardware vendors, and monitoring stacks,
+generalize. We argue they do, for structural reasons. The three                  cannot capture the full diversity of HPC environments. Our results
+failure modes we identify--covariate shift (different hardware), con-            should be validated on additional cluster pairs, particularly those
+ditional shift (different measurement), and era shift (different time            with identical monitoring infrastructure, where the conditional
+periods)--are inherent to any pair of independently operated HPC                 shift component may be absent.
+clusters. Every site chooses its own hardware platform, configures
+its own resource manager, deploys its own monitoring infrastruc-                 7 Conclusion
+ture, and serves its own user community. The Conte-Anvil pair
+is arguably the easiest case for transfer: both are operated by the              Cross-cluster workload comparison remains a highly desirable goal
+same institution (Purdue), both serve similar research communities,              for HPC operations, but this work demonstrates through 84 con-
+and both run standard CPU workloads. If transfer fails between                   trolled experiments that predictive models cannot be safely trans-
+these "sibling" clusters, it is unlikely to succeed between clusters             ferred between unique hardware environments. The failure is not
+at different institutions with different hardware vendors, differ-               a matter of insufficient data, suboptimal algorithms, or missing
+ent monitoring stacks, and different user bases. The one scenario                features--it is a fundamental consequence of measurement non-
+where transfer might become feasible is if clusters adopt identical              equivalence (different clusters measure memory differently), co-
+measurement infrastructure--the same cgroup configuration, the                   variate shift (different hardware creates non-overlapping feature
+same sampling interval, the same aggregation rules--effectively                  distributions), conditional shift (identical features map to differ-
+eliminating conditional shift by construction.                                   ent memory outcomes), and era shift (temporal separation intro-
+                                                                                 duces confounding workload changes). Our investigation systemat-
+                                                                                 ically eliminated every plausible rescue: hardware regime match-
+                                                                                 ing produced seed-unstable results (3 of 4 seeds negative), dense
+                                                                                 sampling made performance worse, feature simplification failed to
+Beyond Unified Schemas: Why Zero-Shot Cross-Cluster Workload Transfer Fails and What It Takes to Make HPC Comparisons DefeCnosnibfleerence 20XX, Date, Year, City, Country
+
+improve overlap, CORAL alignment produced numerical catastro-                           workloads and its impact on research results. In Proceedings of the 2018 USENIX
+phes (2 = -46,520), quantile mapping reversed previously positive                       Annual Technical Conference. USENIX, 533­546.
+results, and even few-shot calibration with 500 labeled target exam-               [2] Shai Ben-David, John Blitzer, Koby Crammer, Alex Kulesza, Fernando Pereira, and
+ples could not outperform the zero-shot baseline. These findings                        Jennifer Wortman Vaughan. 2010. A Theory of Learning from Different Domains.
+carry immediate practical implications: any HPC center currently                        Machine Learning 79, 1­2 (2010), 151­175. doi:10.1007/s10994-009-5152-4
+deploying a model trained on external cluster data for memory                      [3] R. Todd Evans, James C. Browne, and William L. Barth. 2014. Continuous Moni-
+prediction should consider its predictions unreliable until validated                   toring of Performance on Large Scale Systems: Methodology and Infrastructure.
+against local ground truth.                                                             In Proceedings of the 2014 Annual Conference on Extreme Science and Engineering
+                                                                                        Discovery Environment (XSEDE '14). ACM. doi:10.1145/2616498.2616534
+   By adopting the FRESCO v2 provenance framework and lo-                          [4] Dror G. Feitelson, Dan Tsafrir, and David Krakov. 2014. Experience with Using
+cal training methodology, supercomputing centers can abandon                            the Parallel Workloads Archive. J. Parallel and Distrib. Comput. 74, 10 (2014),
+the risks of naive transfer and build robust, future-proof opera-                       2967­2982. doi:10.1016/j.jpdc.2014.06.013
+tional models. The 65-column schema with explicit measurement
+semantics enables practitioners to understand why transfer fails                   [5] Éric Gaussier, David Glesser, Valentin Reis, and Denis Trystram. 2015. Improving
+for their specific cluster pair, rather than discovering it through                     Backfilling by Using Machine Learning to Predict Running Times. In Proceedings
+silent prediction errors in production. The workload comparability
+framework--with its mandatory regime matching, overlap diagnos-                         of the International Conference for High Performance Computing, Networking,
+tics, and shift reporting--provides a principled standard for any                       Storage and Analysis (SC '15). ACM. doi:10.1145/2807591.2807646
+future cross-cluster analysis, ensuring that claims of transferabil-               [6] Alexandru Iosup, Hui Li, Mathieu Jan, Shanny Anoep, Catalin Dumitrescu, Lex
+ity are backed by quantitative evidence rather than assumption.                         Wolters, and Dick H. J. Epema. 2008. The Grid Workloads Archive. In Future
+Our complete experimental infrastructure, including all 84 config-                      Generation Computer Systems, Vol. 24. Elsevier, 672­686.
+urations, pipeline code, and reproducibility artifacts, is publicly                [7] Pooyan Jamshidi, Miguel Velez, Christian Kästner, and Norbert Siegmund. 2017.
+available to enable the community to build on this work as new                          Transfer Learning for Improving Model Predictions in Highly Configurable
+adaptation techniques, richer feature sets, and standardized mea-                       Software. In Proceedings of the IEEE/ACM International Conference on Software
+surement protocols emerge.                                                              Engineering (ICSE). IEEE, 31­41.
+                                                                                   [8] Zhiling Li, Vineet Amatya, Hai Hoang, Steven Zhao, and Sandeep Madireddy.
+   Future Work. Several research directions could advance cross-                        2023. Characterizing Power and Energy Use in Modern HPC Systems: A Case
+cluster HPC analytics beyond the negative boundary we estab-                            Study on Perlmutter. In Proceedings of the International Conference for High
+lish. First, the community could pursue standardized measurement                        Performance Computing, Networking, Storage and Analysis (SC '23). ACM.
+protocols: if clusters adopt identical cgroup configurations, cache                [9] Frank J. Massey Jr. 1951. The Kolmogorov-Smirnov Test for Goodness of Fit. J.
+inclusion policies, and sampling intervals, the conditional shift                       Amer. Statist. Assoc. 46, 253 (1951), 68­78.
+component vanishes by construction, potentially making transfer                   [10] Joshua Stephen McKerracher, Preeti Mukherjee, Rajesh Kalyanam, and Saurabh
+feasible for the first time. Second, causal domain adaptation meth-                     Bagchi. 2025. Fresco: A Public Multi-Institutional Dataset for Understanding
+ods that explicitly model the relationship between measurement                          HPC System Behavior and Dependability. In Proceedings of the Practice and
+infrastructure and observed values could provide principled cor-                        Experience in Advanced Research Computing (PEARC '25). ACM, Columbus, OH,
+rections where statistical alignment fails--for example, learning a                     USA. doi:10.1145/3708035.3736090
+causal model of how cache inclusion affects memory measurements                   [11] Ivy B. Peng, Balazs Gerofi, and Hajime Fuji. 2022. Revealing the Hidden Cost of
+and inverting it at inference time. Third, our analysis focuses on                      Memory Management in HPC Systems. In Proceedings of the IEEE International
+memory prediction; extending the investigation to runtime, power                        Symposium on Workload Characterization (IISWC). IEEE.
+consumption, and I/O throughput--metrics that may be less sensitive               [12] Charles Reiss, Alexey Tumanov, Gregory R. Ganger, Randy H. Katz, and Michael A.
+to measurement methodology--would map the full boundary of                              Kozuch. 2012. Heterogeneity and Dynamicity of Clouds at Scale: Google Trace
+what can and cannot transfer. Finally, the emergence of federated                       Analysis. In Proceedings of the ACM Symposium on Cloud Computing (SoCC '12).
+learning frameworks for HPC could enable collaborative model                            ACM. doi:10.1145/2391229.2391236
+training without requiring raw data sharing, though our results                   [13] Gonzalo P. Rodrigo, P-O Ostberg, Erik Elmroth, Katie Antypas, Richard Gerber,
+suggest that even shared gradient updates may encode site-specific                      and Lavanya Ramakrishnan. 2018. Towards Understanding HPC Users and
+measurement artifacts that resist aggregation.                                          Systems: A NERSC Case Study. In Journal of Parallel and Distributed Computing,
+                                                                                        Vol. 111. Elsevier, 206­221.
+Acknowledgments                                                                   [14] Bianca Schroeder and Garth A. Gibson. 2010. The Computer Failure Data Reposi-
+                                                                                        tory (CFDR). https://www.usenix.org/cfdr. Hosted by Carnegie Mellon University
+This work was supported in part by the National Science Foundation                      and USENIX.
+under grants CNS-2016704 and CCF-2140139. We thank Carol Song                     [15] Norbert Siegmund, Alexander Grebhahn, Sven Apel, and Christian Kästner. 2015.
+(Purdue Research Computing) for providing access to Anvil opera-                        Performance-Influence Models for Highly Configurable Systems. In Proceedings
+tional data, Stephen Harrell (TACC) for assistance with Stampede                        of the 10th Joint Meeting on Foundations of Software Engineering (ESEC/FSE '15).
+and Conte data formats, and Rajesh Kalyanam for contributions to                        ACM, 284­294. doi:10.1145/2786805.2786845
+the original FRESCO dataset.                                                      [16] Warren Smith, Valerie Taylor, and Ian Foster. 1998. Using Run-Time Predictions to
+                                                                                        Estimate Queue Wait Times and Improve Scheduler Performance. In Proceedings
+References                                                                              of the Workshop on Job Scheduling Strategies for Parallel Processing. Springer,
+                                                                                        202­219.
+ [1] George Amvrosiadis, Jun Woo Park, Gregory R. Ganger, Garth A. Gibson, Elis-  [17] Baochen Sun and Kate Saenko. 2016. Deep CORAL: Correlation Alignment for
+      abeth Baseman, and Nathan DeBardeleben. 2018. On the diversity of cluster         Deep Domain Adaptation. In Proceedings of the European Conference on Computer
+                                                                                        Vision (ECCV) Workshops. Springer, 443­450.
+                                                                                  [18] Dan Tsafrir, Yoav Etsion, and Dror G. Feitelson. 2007. Backfilling Using System-
+                                                                                        Generated Predictions Rather than User Runtime Estimates. In IEEE Transactions
+                                                                                        on Parallel and Distributed Systems, Vol. 18. IEEE, 789­803.
+                                                                                  [19] Pavel Valov, Jean-Christophe Petkovich, Jianmei Guo, Sebastian Fischmeister,
+                                                                                        and Krzysztof Czarnecki. 2017. Transferring Performance Prediction Models
+                                                                                        Across Different Hardware Environments. In Proceedings of the 8th ACM/SPEC
+                                                                                        International Conference on Performance Engineering (ICPE '17). ACM, 39­50.
+                                                                                        doi:10.1145/3030207.3030216
+                                                                                  [20] Yaqing Wang, Quanming Yao, James T. Kwok, and Lionel M. Ni. 2020. Generalizing
+                                                                                        from a Few Examples: A Survey on Few-Shot Learning. Comput. Surveys 53, 3
+                                                                                        (2020), 1­34. doi:10.1145/3386252
+                                                                                  [21] Garrett Wilson and Diane J. Cook. 2020. A Survey of Unsupervised Deep Domain
+                                                                                        Adaptation. ACM Transactions on Intelligent Systems and Technology 11, 5 (2020),
+                                                                                        1­46. doi:10.1145/3400066

@@ -1,0 +1,149 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Option 2: Full FRESCO Cluster-Aware Failure Prediction Challenge</title>
+  <style>
+    body{font-family:Arial,Helvetica,sans-serif;line-height:1.55;color:#1f2937;margin:0;background:#fff}.wrap{max-width:980px;margin:0 auto;padding:36px 24px 60px}h1,h2,h3{color:#111827;line-height:1.25}h1{margin-bottom:.25rem}h2{margin-top:2rem;border-bottom:1px solid #e5e7eb;padding-bottom:.35rem}.muted{color:#6b7280}.meta{display:grid;grid-template-columns:repeat(auto-fit,minmax(180px,1fr));gap:12px;margin:1rem 0}.box{background:#f9fafb;border:1px solid #e5e7eb;border-radius:8px;padding:12px 14px}blockquote{margin:1rem 0;padding:.8rem 1rem;background:#eff6ff;border-left:4px solid #2563eb;font-weight:600}ul,ol{padding-left:1.25rem}code{background:#f3f4f6;padding:1px 4px;border-radius:4px}.warn{background:#fff7ed;border-left:4px solid #f97316;padding:.8rem 1rem}.small{font-size:.92rem;color:#6b7280}
+  </style>
+</head>
+<body><div class="wrap">
+  <h1>Option 2: Full FRESCO Cluster-Aware Failure Prediction Challenge</h1>
+  <p class="muted">A multi-cluster challenge concept using the full FRESCO dataset.</p>
+
+  <h2>Overview</h2>
+  <p>Welcome to the <strong>Full FRESCO Cluster-Aware Failure Prediction Challenge</strong>. In this competition, participants work with resource-usage data from multiple HPC systems represented in the FRESCO dataset. The data contains job metadata and resource telemetry such as CPU usage, memory usage, GPU activity, NFS traffic, and block-device I/O.</p>
+  <p>Your objective is to build a model that predicts whether a job will later <strong>fail or time out</strong> using job metadata, early resource-usage telemetry, and cluster/environment context.</p>
+  <blockquote>In short: use the full FRESCO dataset to build a cluster-aware early-warning model for job failure.</blockquote>
+
+  <div class="meta">
+    <div class="box"><strong>Challenge type</strong><br/>Binary classification / early warning</div>
+    <div class="box"><strong>Dataset scope</strong><br/>All usable FRESCO clusters</div>
+    <div class="box"><strong>Primary metric</strong><br/>Macro cluster AUPRC</div>
+    <div class="box"><strong>Suggested dates</strong><br/>TBD</div>
+  </div>
+
+  <h2>Description</h2>
+  <p>FRESCO contains data from multiple production HPC systems collected across different hardware generations, scheduler environments, and monitoring stacks. This option asks participants to build a single predictive pipeline that uses the entire dataset while respecting cluster-specific differences.</p>
+  <p>Participants will receive a training set containing jobs from all included clusters and a test set containing later jobs from those same clusters. Each row represents a job-level prediction instance constructed from job metadata and early telemetry.</p>
+
+  <h2>The Problem</h2>
+  <p>The dataset captures vital resource usage metrics across jobs, hosts, and clusters. The task is to predict a binary label:</p>
+  <ul>
+    <li><code>0</code>: job completed successfully</li>
+    <li><code>1</code>: job failed or timed out</li>
+  </ul>
+  <p>The challenge lies in handling heterogeneous environments. A pattern that is predictive on one cluster may not mean the same thing on another cluster, so participants must build models that are cluster-aware, robust, and carefully validated.</p>
+
+  <h2>Important Note: This Is Not Zero-Shot Transfer</h2>
+  <div class="warn">
+    <p>Recent FRESCO research suggests that zero-shot transfer to an unseen target cluster is not currently reliable. Therefore, this challenge should <strong>not</strong> be framed as “train on one cluster and predict another unseen cluster.”</p>
+    <p>Instead, this is a <strong>pooled multi-cluster prediction</strong> challenge: all target clusters are represented in training, and the goal is to model them jointly while accounting for cluster differences.</p>
+  </div>
+
+  <h2>Metrics Captured</h2>
+  <p>The source data is stored in monthly zip archives containing hourly Parquet files. The observed schema includes:</p>
+  <ul>
+    <li><strong>time</strong>: timestamp for the telemetry record</li>
+    <li><strong>submit_time, start_time, end_time</strong>: job timing fields</li>
+    <li><strong>timelimit</strong>: requested walltime limit</li>
+    <li><strong>nhosts, ncores</strong>: requested hosts and cores</li>
+    <li><strong>account, queue, host, jid, jobname, username</strong>: anonymized job/accounting fields</li>
+    <li><strong>exitcode</strong>: final job state used to construct the label</li>
+    <li><strong>host_list</strong>: allocated hosts</li>
+    <li><strong>value_cpuuser</strong>: CPU user-mode activity</li>
+    <li><strong>value_gpu</strong>: GPU active time percentage, when applicable</li>
+    <li><strong>value_memused</strong>: physical memory usage</li>
+    <li><strong>value_memused_minus_diskcache</strong>: memory usage excluding disk cache, when available</li>
+    <li><strong>value_nfs</strong>: NFS data-transfer rate</li>
+    <li><strong>value_block</strong>: block-device I/O rate</li>
+  </ul>
+
+  <h2>Cluster Context</h2>
+  <p>Participants may receive cluster context such as:</p>
+  <ul>
+    <li>cluster identifier</li>
+    <li>queue / partition</li>
+    <li>hardware regime, if available</li>
+    <li>time period / era features</li>
+    <li>documented measurement semantics, when available</li>
+  </ul>
+  <p>This is important because a shared schema does not guarantee identical measurement meaning across clusters.</p>
+
+  <h2>Allowed Modeling Techniques</h2>
+  <p>Participants may use any supervised binary-classification method, including:</p>
+  <ul>
+    <li>global pooled models</li>
+    <li>cluster-specific models with an ensemble or routing rule</li>
+    <li>hierarchical / mixed modeling ideas</li>
+    <li>gradient boosting or random forests</li>
+    <li>calibrated classifiers</li>
+    <li>neural models, if practical and well documented</li>
+  </ul>
+
+  <h2>Example Baseline</h2>
+  <pre><code># Example: train a pooled cluster-aware classifier
+from sklearn.ensemble import HistGradientBoostingClassifier
+from sklearn.preprocessing import OneHotEncoder
+
+features = ["cluster", "queue", "timelimit", "nhosts", "ncores", "early_cpuuser_mean", "early_memused_max"]
+# Encode categorical fields, train on pooled jobs, predict failure probability.
+model = HistGradientBoostingClassifier(random_state=0)
+model.fit(X_train, y_train)
+test["failure_probability"] = model.predict_proba(X_test)[:, 1]</code></pre>
+
+  <h2>Evaluation Criteria</h2>
+  <p>Submissions will be evaluated based on predicted failure probabilities and actual job outcomes.</p>
+  <ul>
+    <li><strong>Prediction Accuracy (70%)</strong>: ranked primarily by <strong>macro-average AUPRC across clusters</strong>. This prevents one large cluster from dominating the score.</li>
+    <li><strong>Methodology and Creativity (20%)</strong>: quality of cluster-aware modeling, leakage handling, treatment of heterogeneous measurement semantics, and interpretation of resource signals.</li>
+    <li><strong>Efficiency and Documentation (10%)</strong>: clean, modular, reproducible, and computationally efficient code.</li>
+  </ul>
+  <p>Secondary diagnostics may include overall AUPRC, AUROC, per-cluster AUPRC, calibration, and recall at fixed false-positive rate.</p>
+
+  <h2>Why Not R or R²?</h2>
+  <p>This challenge predicts whether a job fails or times out, so it is a classification task. Correlation or R² would be more appropriate for regression tasks such as predicting memory usage or runtime. For rare-event failure prediction, AUPRC is a better primary metric.</p>
+
+  <h2>Use of LLMs</h2>
+  <p>Use of LLMs or AI tools should be disclosed. Participants should explain how AI tools were used and how their outputs were validated.</p>
+
+  <h2>CSV Submission</h2>
+  <p>The submitted CSV should contain one row for each row in the test set and must include:</p>
+  <ul>
+    <li><code>row_id</code>: identifier from the test data</li>
+    <li><code>failure_probability</code>: numeric probability between 0 and 1</li>
+  </ul>
+  <p>Higher probabilities should indicate greater predicted risk of failure or timeout.</p>
+
+  <h2>Expected Deliverables</h2>
+  <ul>
+    <li><strong>Prediction CSV</strong>: one probability per test row</li>
+    <li><strong>Python code or notebook</strong>: feature construction and model training</li>
+    <li><strong>Short report</strong>: methods used, validation results, cluster-wise performance, leakage controls, and interpretation of important features</li>
+    <li><strong>Optional video</strong>: brief explanation of the approach</li>
+  </ul>
+
+  <h2>Dataset Description</h2>
+  <p>The source FRESCO data can be downloaded from <a href="https://www.frescodata.xyz/bulk-download">https://www.frescodata.xyz/bulk-download</a>. Monthly files are provided as <code>{YYYY-MM}.zip</code> archives containing hourly Parquet files.</p>
+  <p>For this challenge option, the organizer would derive participant-ready CSV files from all included clusters, likely including:</p>
+  <ul>
+    <li><code>train.csv</code>: labeled jobs from earlier time periods across all included clusters</li>
+    <li><code>validation.csv</code>: labeled jobs from later periods across all included clusters</li>
+    <li><code>test.csv</code>: unlabeled jobs from newest periods across all included clusters</li>
+    <li><code>sample_submission.csv</code>: required submission format</li>
+    <li><code>cluster_metadata.html</code>: cluster context and known measurement differences</li>
+    <li><code>data_dictionary.html</code>: feature definitions and leakage rules</li>
+  </ul>
+
+  <h2>Recommended Split Design</h2>
+  <ul>
+    <li>Use temporal splits <strong>within each cluster</strong></li>
+    <li>Pool cluster-specific training windows into one training set</li>
+    <li>Use later windows from each represented cluster for validation and hidden test</li>
+    <li>Report both overall and per-cluster performance</li>
+  </ul>
+
+  <h2>Bottom Line</h2>
+  <blockquote>This option uses the full dataset and is more ambitious than the Anvil-only version. It should be framed as pooled, cluster-aware prediction across known clusters — not as zero-shot transfer to unseen clusters.</blockquote>
+</div></body></html>

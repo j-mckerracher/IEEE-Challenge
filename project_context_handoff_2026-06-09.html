@@ -1,0 +1,164 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>IEEE Challenge and FRESCO Research Context Handoff</title>
+  <style>
+    body{font-family:Arial,Helvetica,sans-serif;line-height:1.55;color:#1f2937;margin:0;background:#fff}.wrap{max-width:1050px;margin:0 auto;padding:36px 24px 64px}h1,h2,h3{color:#111827;line-height:1.25}h1{margin-bottom:.25rem}h2{margin-top:2rem;border-bottom:1px solid #e5e7eb;padding-bottom:.35rem}.muted{color:#6b7280}blockquote{margin:1rem 0;padding:.8rem 1rem;background:#eff6ff;border-left:4px solid #2563eb;font-weight:600}.note{background:#f9fafb;border:1px solid #e5e7eb;border-radius:8px;padding:.9rem 1rem}ul,ol{padding-left:1.25rem}code{background:#f3f4f6;padding:1px 4px;border-radius:4px}.warn{background:#fff7ed;border-left:4px solid #f97316;padding:.8rem 1rem}
+  </style>
+</head>
+<body><div class="wrap">
+  <h1>IEEE Challenge and FRESCO Research Context Handoff</h1>
+  <p class="muted">Created: 2026-06-09</p>
+
+  <h2>Purpose</h2>
+  <p>This document captures the working context from the discussion about the IEEE Global Student Challenge, the FRESCO cross-cluster research, and the supporting HTML documents created in this repository.</p>
+
+  <h2>Repository</h2>
+  <ul>
+    <li>Local path: <code>C:/Users/jmckerra/Code/IEEE-GSC-Challenge</code></li>
+    <li>Remote: <code>https://github.com/j-mckerracher/IEEE-Challenge.git</code></li>
+  </ul>
+
+  <h2>Core IEEE Challenge Direction</h2>
+  <p>The first and currently cleanest challenge option is an Anvil-only early job failure prediction challenge.</p>
+  <blockquote>Given early job metadata and resource-usage telemetry from Anvil, predict which jobs are likely to fail or time out before they finish.</blockquote>
+  <p>Reasoning:</p>
+  <ul>
+    <li>The prompt is about analyzing resource usage and predicting events such as failures or performance slowdowns.</li>
+    <li>Failure/timeout is clearer and easier to score than slowdown.</li>
+    <li>Anvil was selected because the user preferred the cluster with high usable data density and volume.</li>
+    <li>A single-cluster challenge avoids turning the competition into a cross-cluster transfer problem.</li>
+  </ul>
+
+  <h2>Option 1: Anvil-Only Failure Prediction</h2>
+  <ul>
+    <li>Dataset scope: Anvil only</li>
+    <li>Task: binary classification for failure/timeout</li>
+    <li>Inputs: job metadata + early telemetry features</li>
+    <li>Recommended feature packaging: precomputed early-window features</li>
+    <li>Primary metric: AUPRC</li>
+    <li>Secondary metrics: AUROC, calibration, recall at fixed false-positive rate</li>
+    <li>Split: temporal train/validation/test</li>
+  </ul>
+  <p>Relevant file: <code>option1_anvil_failure_prediction_overview.html</code></p>
+
+  <h2>Option 2: Full-Dataset Cluster-Aware Prediction</h2>
+  <p>A second option was generated using the entire FRESCO dataset.</p>
+  <blockquote>Use the full FRESCO dataset to build a pooled, cluster-aware early-warning model for job failure.</blockquote>
+  <p>Important nuance:</p>
+  <ul>
+    <li>This option is not zero-shot cross-cluster transfer.</li>
+    <li>It is a pooled multi-cluster prediction challenge where the target clusters are represented in training.</li>
+    <li>Because one cluster could dominate the leaderboard, the recommended primary metric is macro-average AUPRC across clusters.</li>
+  </ul>
+  <p>Relevant file: <code>option2_full_dataset_cluster_aware_prediction_overview.html</code></p>
+
+  <h2>Why AUPRC Instead of R or R²?</h2>
+  <p>Failure prediction is a classification task, not a regression task. Therefore, correlation, R, or R² are not the right main metrics unless the task is changed to predicting a continuous value such as memory usage, runtime, or wait time.</p>
+  <ul>
+    <li>Failure prediction: use AUPRC / AUROC</li>
+    <li>Resource amount prediction: use R² / MAE / RMSE</li>
+  </ul>
+
+  <h2>Kaggle Challenge Style</h2>
+  <p>The old Kaggle imputation challenge was used as a format reference. The option documents were rewritten to include similar kinds of participant-facing information:</p>
+  <ul>
+    <li>Overview</li>
+    <li>Description</li>
+    <li>The Problem</li>
+    <li>Metrics Captured</li>
+    <li>Allowed Modeling Techniques</li>
+    <li>Example Baseline</li>
+    <li>Evaluation Criteria</li>
+    <li>Use of LLMs</li>
+    <li>CSV Submission</li>
+    <li>Expected Deliverables</li>
+    <li>Dataset Description</li>
+  </ul>
+
+  <h2>Dataset Structure Observed</h2>
+  <p>The FRESCO bulk data can be downloaded from <a href="https://www.frescodata.xyz/bulk-download">https://www.frescodata.xyz/bulk-download</a>. Local monthly zips were observed at <code>C:/Users/jmckerra/Downloads/{YYYY-MM}.zip</code>. These zips contain hourly Parquet files.</p>
+  <p>Observed Parquet columns include:</p>
+  <ul>
+    <li><code>time</code></li>
+    <li><code>submit_time</code>, <code>start_time</code>, <code>end_time</code></li>
+    <li><code>timelimit</code></li>
+    <li><code>nhosts</code>, <code>ncores</code></li>
+    <li><code>account</code>, <code>queue</code>, <code>host</code>, <code>jid</code>, <code>unit</code>, <code>jobname</code></li>
+    <li><code>exitcode</code></li>
+    <li><code>host_list</code>, <code>username</code></li>
+    <li><code>value_cpuuser</code>, <code>value_gpu</code>, <code>value_memused</code></li>
+    <li><code>value_memused_minus_diskcache</code>, <code>value_nfs</code>, <code>value_block</code></li>
+  </ul>
+
+  <h2>FRESCO Research Summary</h2>
+  <p>The relevant paper is titled:</p>
+  <blockquote>Beyond Unified Schemas: Why Zero-Shot Cross-Cluster Workload Transfer Fails and What It Takes to Make HPC Comparisons Defensible</blockquote>
+  <p>Main findings discussed:</p>
+  <ul>
+    <li>Zero-shot cross-cluster memory prediction failed badly.</li>
+    <li>Failure persisted after hardware/regime matching, overlap-aware cohort selection, feature simplification, dense sampling, CORAL, quantile mapping, and few-shot calibration.</li>
+    <li>Few-shot calibration with up to 500 labeled target examples did not rescue transfer.</li>
+    <li>Local Anvil modeling produced meaningful positive results, suggesting local site-specific modeling is currently more defensible.</li>
+  </ul>
+
+  <h2>Important Research Nuance: Pooled Models vs Transfer</h2>
+  <div class="note">
+    <p>Earlier FRESCO work did try pooled models such as <code>pooled_no_id</code> and <code>pooled_with_id</code>. Those models performed reasonably when the target cluster was represented in training. However, this is different from zero-shot transfer to a target cluster absent from training.</p>
+    <p>The refined claim is therefore: pooled multi-cluster supervised modeling may work when all target domains are represented, but zero-shot or near-zero-shot deployment to an unseen target cluster remains unreliable.</p>
+  </div>
+
+  <h2>Why Transfer Is Not Currently Feasible</h2>
+  <p>The main obstacle is not only distribution shift. It is also measurement-semantic non-equivalence.</p>
+  <p>Example: two clusters may both report “memory,” but one may include page cache while another excludes page cache or reports RSS. The shared column name does not imply the same operational quantity.</p>
+  <ul>
+    <li>Measurement non-equivalence: different meaning of the target/feature</li>
+    <li>Covariate shift: different hardware/workloads/schedulers</li>
+    <li>Conditional shift: same inputs map to different observed outcomes</li>
+    <li>Era shift: different time periods, software stacks, and user communities</li>
+  </ul>
+  <p>Relevant file: <code>fresco_transfer_not_feasible_explainer.html</code></p>
+
+  <h2>Meeting Direction With Saurabh</h2>
+  <p>The desired meeting framing is strategic rather than nitty-gritty. The preferred sequence is:</p>
+  <ol>
+    <li>Publish the argument that provenance and measurement-semantic standards are necessary.</li>
+    <li>Then study cross-cluster comparability as an open research question.</li>
+    <li>Only later consider rebuilding or redesigning the dataset around comparability goals.</li>
+  </ol>
+  <p>Key framing:</p>
+  <blockquote>Schema harmonization alone is insufficient; provenance standardization is a necessary precondition for defensible cross-cluster analysis.</blockquote>
+  <p>Relevant file: <code>meeting_brief_saurabh_fresco_direction_2026-06-08.html</code></p>
+
+  <h2>Other Challenge Creator Plan Reviewed</h2>
+  <p>A separate GitHub Actions security challenge plan was reviewed. Observations:</p>
+  <ul>
+    <li>Strong two-part task: vulnerability detection and patch generation.</li>
+    <li>Scope is appropriately constrained to code injection vulnerabilities in GitHub Actions YAML components.</li>
+    <li>Dataset should probably include frozen referenced action files for reproducibility.</li>
+    <li>LLM agents may help evaluate patches but should not be the sole final judge.</li>
+    <li>Exact line-number matching for detection may be brittle.</li>
+    <li>A participant-facing challenge problem statement is needed.</li>
+  </ul>
+
+  <h2>Files Created / Updated</h2>
+  <ul>
+    <li><code>option1_anvil_failure_prediction_overview.html</code></li>
+    <li><code>option2_full_dataset_cluster_aware_prediction_overview.html</code></li>
+    <li><code>ieee_gsc_challenge_handoff_2026-06-08.html</code></li>
+    <li><code>meeting_brief_saurabh_fresco_direction_2026-06-08.html</code></li>
+    <li><code>fresco_transfer_not_feasible_explainer.html</code></li>
+    <li><code>fresco_transfer_explainer_assets/domain_shift_summary.png</code></li>
+    <li><code>fresco_transfer_explainer_assets/local_blueprint_summary.png</code></li>
+    <li><code>project_context_handoff_2026-06-09.html</code></li>
+  </ul>
+
+  <h2>Current Bottom Line</h2>
+  <ul>
+    <li>Option 1 is cleaner and safer: Anvil-only early failure prediction.</li>
+    <li>Option 2 is broader and uses the whole dataset: pooled cluster-aware prediction, not zero-shot transfer.</li>
+    <li>The research story should emphasize the need for provenance standards before advocating major community data collection changes.</li>
+  </ul>
+</div></body></html>

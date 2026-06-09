@@ -1,0 +1,96 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Meeting Brief: FRESCO Research Direction</title>
+  <style>
+    body{font-family:Arial,Helvetica,sans-serif;line-height:1.55;color:#1f2937;margin:0;background:#fff}
+    .wrap{max-width:950px;margin:0 auto;padding:36px 24px 56px}
+    h1,h2,h3{color:#111827;line-height:1.25}.muted{color:#6b7280}
+    h2{margin-top:2rem;border-bottom:1px solid #e5e7eb;padding-bottom:.3rem}
+    blockquote{margin:1rem 0;padding:.8rem 1rem;background:#eff6ff;border-left:4px solid #2563eb;font-weight:600}
+    .note{background:#f9fafb;border:1px solid #e5e7eb;padding:.9rem 1rem;border-radius:8px}
+    ul,ol{padding-left:1.25rem}
+  </style>
+</head>
+<body>
+<div class="wrap">
+  <h1>Meeting Brief: FRESCO Research Direction After Cross-Cluster Transfer Results</h1>
+  <p class="muted">Date: 2026-06-08</p>
+
+  <h2>Purpose</h2>
+  <p>This brief is for discussing the strategic research direction for FRESCO after the current cross-cluster transfer findings.</p>
+
+  <h2>Core Message</h2>
+  <p>The main value of the current results is not simply that transfer failed.</p>
+  <blockquote>Schema harmonization alone is insufficient for defensible cross-cluster analysis; provenance and measurement-semantic standards are likely a necessary precondition.</blockquote>
+
+  <h2>What the Results Mean</h2>
+  <p>The experiments suggest that cross-cluster predictive transfer is unreliable under ordinary heterogeneous HPC data collection practices. The problem appears structural, not just a weak-model issue:</p>
+  <ul>
+    <li>different clusters measure resources differently,</li>
+    <li>similar features may not mean the same thing across sites,</li>
+    <li>hardware and workload differences create additional shift,</li>
+    <li>temporal differences add further instability.</li>
+  </ul>
+  <blockquote>Without explicit provenance and comparable measurement semantics, cross-cluster claims may be uninterpretable or misleading.</blockquote>
+
+  <h2>Important Nuance: What Did Work</h2>
+  <div class="note">
+    <p><strong>Pooled models are not the same as transfer.</strong></p>
+    <p>Earlier FRESCO work showed that pooled multi-cluster models can perform reasonably <em>when the target cluster is already represented in training</em>. That is useful, but it does not solve the harder question of zero-shot or near-zero-shot deployment to a target cluster with no target-domain training data.</p>
+    <p>So the correct message is not “all cross-cluster use fails equally.” The stronger claim is: <strong>models do not reliably transfer to a target cluster when that target is not represented in training and measurement semantics differ.</strong></p>
+  </div>
+
+  <h2>Why This Matters to the HPC Community</h2>
+  <p>If we eventually want to tell the HPC community that provenance standards are needed for cross-cluster analysis, they will ask: <strong>Why?</strong></p>
+  <p>The answer should be: because we now have empirical evidence that, without those standards, cross-cluster predictive analysis breaks down or becomes unstable.</p>
+
+  <h2>Small Example of Semantic Non-Equivalence</h2>
+  <p>Two clusters may both expose something called <strong>memory usage</strong>, but the metric may not mean the same thing.</p>
+  <ul>
+    <li><strong>Cluster A:</strong> memory accounting includes page cache</li>
+    <li><strong>Cluster B:</strong> memory accounting excludes page cache or tracks RSS instead</li>
+  </ul>
+  <p>In that case, the shared column name does not imply a shared operational quantity. A model trained on Cluster A can learn relationships tied to A’s accounting rules and then fail when deployed on Cluster B.</p>
+  <p>Other semantic mismatches can include different sampling intervals, aggregation rules, cache policies, and telemetry sources.</p>
+
+  <h2>Strategic Options</h2>
+  <h3>Option 1: Publish the standards-motivation argument first</h3>
+  <p>This is the preferred next step.</p>
+  <ul>
+    <li>Use the current evidence to argue that provenance standards are necessary for defensible cross-cluster analysis</li>
+    <li>Frame it not as “standards would be nice,” but as “without provenance standards, cross-cluster claims are not reliably interpretable”</li>
+  </ul>
+
+  <h3>Option 2: Treat cross-cluster comparability as the next open research question</h3>
+  <p>This is the next direction to discuss after the standards argument is established.</p>
+  <ul>
+    <li>Which provenance elements matter most?</li>
+    <li>Which measurement mismatches are fatal?</li>
+    <li>Are some targets more transferable than others?</li>
+    <li>Are there constrained settings where comparability is achievable?</li>
+  </ul>
+
+  <h3>Option 3: Redesign or reconstruct the dataset around comparability goals</h3>
+  <p>This comes later, after the evidentiary and methodological case is stronger.</p>
+
+  <h2>Recommended Sequence</h2>
+  <ol>
+    <li><strong>Publish the argument that provenance standards are necessary</strong></li>
+    <li><strong>Investigate cross-cluster comparability as an open methodological question</strong></li>
+    <li><strong>Only later consider dataset redesign / reconstruction for comparability</strong></li>
+  </ol>
+
+  <h2>What I Want to Convey in the Meeting</h2>
+  <p>I do <strong>not</strong> think the most valuable immediate next step is trying harder to force cross-cluster prediction to work.</p>
+  <blockquote>Publish the evidence-based case that provenance and measurement-semantic standards are necessary if the community wants defensible cross-cluster analysis at all.</blockquote>
+  <p>Then ask:</p>
+  <blockquote>Under what conditions could cross-cluster analysis actually become possible?</blockquote>
+
+  <h2>Bottom Line</h2>
+  <blockquote>Use the present findings to publish the necessity of provenance standards first, then pursue cross-cluster comparability as an open research question, and only later move toward a redesigned dataset or collection strategy.</blockquote>
+</div>
+</body>
+</html>
