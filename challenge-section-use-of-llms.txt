@@ -1,0 +1,15 @@
+Use of LLMs
+
+Participants may use Large Language Models (LLMs) or other AI tools if allowed by the official competition rules. Any use of these tools should be disclosed in the methodology report.
+
+If LLMs or AI tools are used, participants should briefly explain:
+
+- which tools were used
+- what parts of the workflow they supported
+- whether they were used for coding, debugging, feature ideas, documentation, model design, or analysis
+- how generated code or suggestions were checked
+- whether the tools had any meaningful impact on the final solution
+
+Participants remain responsible for the correctness, originality, and rule compliance of their submissions. AI-generated code should be reviewed, tested, and understood by the team before submission.
+
+Transparency is important. Disclosure of AI tool usage is not intended to penalize participants automatically; it helps judges evaluate the originality, methodology, and reliability of the submitted work.

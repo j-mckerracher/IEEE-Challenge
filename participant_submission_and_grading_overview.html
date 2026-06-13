@@ -1,0 +1,163 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Participant Submissions and Automated Grading</title>
+  <style>
+    body{font-family:Arial,Helvetica,sans-serif;line-height:1.55;color:#1f2937;margin:0;background:#fff}.wrap{max-width:980px;margin:0 auto;padding:36px 24px 60px}h1,h2,h3{color:#111827;line-height:1.25}h1{margin-bottom:.25rem}h2{margin-top:2rem;border-bottom:1px solid #e5e7eb;padding-bottom:.35rem}.muted{color:#6b7280}.box{background:#f9fafb;border:1px solid #e5e7eb;border-radius:8px;padding:12px 14px;margin:1rem 0}blockquote{margin:1rem 0;padding:.8rem 1rem;background:#eff6ff;border-left:4px solid #2563eb;font-weight:600}ul,ol{padding-left:1.25rem}code{background:#f3f4f6;padding:1px 4px;border-radius:4px}pre{background:#111827;color:#f9fafb;padding:16px;border-radius:8px;overflow:auto;font-size:.92rem;line-height:1.45}pre code{background:transparent;color:inherit;padding:0}.warn{background:#fff7ed;border-left:4px solid #f97316;padding:.8rem 1rem}.small{font-size:.92rem;color:#6b7280}
+  </style>
+</head>
+<body><div class="wrap">
+  <h1>Participant Submissions and Automated Grading</h1>
+  <p class="muted">For the IEEE Computer Society Global Student Challenge: FRESCO early job failure prediction.</p>
+
+  <h2>Submission Package</h2>
+  <p>Each team should submit three required artifacts. The prediction file is used for automated scoring, while the code and report support the methodology, creativity, efficiency, and documentation review.</p>
+
+  <h3>1. Prediction CSV</h3>
+  <p>The CSV must contain one row for each test example and exactly one predicted failure probability per row.</p>
+  <ul>
+    <li><code>row_id</code>: identifier copied from the test set</li>
+    <li><code>failure_probability</code>: numeric probability from <code>0</code> to <code>1</code></li>
+  </ul>
+  <p>Higher values should indicate greater predicted risk that the job will fail or time out.</p>
+
+  <h3>2. Reproducible Code or Notebook</h3>
+  <p>Teams should provide a Python script, package, or notebook that shows how the predictions were produced. It should include preprocessing, feature construction, model training, validation, and final CSV export.</p>
+
+  <h3>3. Short Methodology Report</h3>
+  <p>The report should explain the modeling choices and validation process. Strong reports should discuss feature design, model choice, leakage controls, class imbalance, cluster-aware validation, cluster differences, and any creative or advanced techniques used.</p>
+
+  <h2>Recommended Rubric</h2>
+  <ul>
+    <li><strong>Prediction Accuracy (70%)</strong>: automated score based on the hidden test labels, primarily macro-average AUPRC across clusters.</li>
+    <li><strong>Methodology and Creativity (20%)</strong>: appropriateness, originality, and rigor of the approach, including leakage-aware validation and cluster-aware modeling.</li>
+    <li><strong>Efficiency and Documentation (10%)</strong>: clean, modular, reproducible, and computationally reasonable code with clear explanations.</li>
+  </ul>
+
+  <h2>Automated Grading Script</h2>
+  <p>The automated grader should validate the submission format, join predictions to hidden labels by <code>row_id</code>, compute per-cluster AUPRC, and return one numeric score. Macro-average AUPRC is recommended because it prevents the largest cluster from dominating the leaderboard.</p>
+  <p>The production-style Python scorer for Kaggle is provided in <code>kaggle_score_submission.py</code>. The example below shows the same scoring idea in a compact form.</p>
+
+  <div class="box">
+    <strong>Expected grader inputs</strong>
+    <ul>
+      <li><code>submission.csv</code>: participant predictions with <code>row_id</code> and <code>failure_probability</code></li>
+      <li><code>hidden_labels.csv</code>: organizer-held labels with <code>row_id</code>, <code>cluster</code>, and <code>label</code></li>
+    </ul>
+  </div>
+
+  <pre><code>from __future__ import annotations
+
+import argparse
+import json
+
+import numpy as np
+import pandas as pd
+from sklearn.metrics import average_precision_score, roc_auc_score
+
+
+def validate_submission(submission: pd.DataFrame, labels: pd.DataFrame) -&gt; None:
+    required_columns = {"row_id", "failure_probability"}
+    missing = required_columns - set(submission.columns)
+    if missing:
+        raise ValueError(f"Submission is missing required columns: {sorted(missing)}")
+
+    if submission["row_id"].duplicated().any():
+        raise ValueError("Submission contains duplicate row_id values.")
+
+    expected_ids = set(labels["row_id"])
+    submitted_ids = set(submission["row_id"])
+    missing_ids = expected_ids - submitted_ids
+    extra_ids = submitted_ids - expected_ids
+    if missing_ids or extra_ids:
+        raise ValueError(
+            f"Submission row_id mismatch: {len(missing_ids)} missing, "
+            f"{len(extra_ids)} unexpected."
+        )
+
+    probabilities = submission["failure_probability"]
+    if not np.isfinite(probabilities).all():
+        raise ValueError("failure_probability must contain only finite numeric values.")
+    if ((probabilities &lt; 0) | (probabilities &gt; 1)).any():
+        raise ValueError("failure_probability must be between 0 and 1.")
+
+
+def score_submission(submission_path: str, labels_path: str) -&gt; dict:
+    submission = pd.read_csv(submission_path)
+    labels = pd.read_csv(labels_path)
+
+    validate_submission(submission, labels)
+
+    merged = labels.merge(submission, on="row_id", how="left", validate="one_to_one")
+    per_cluster = {}
+
+    for cluster, group in merged.groupby("cluster"):
+        y_true = group["label"].astype(int)
+        y_score = group["failure_probability"].astype(float)
+
+        # AUPRC is undefined when a cluster has only one class in the hidden test set.
+        if y_true.nunique() &lt; 2:
+            continue
+
+        per_cluster[str(cluster)] = {
+            "auprc": float(average_precision_score(y_true, y_score)),
+            "auroc": float(roc_auc_score(y_true, y_score)),
+            "n_rows": int(len(group)),
+            "positive_rate": float(y_true.mean()),
+        }
+
+    if not per_cluster:
+        raise ValueError("No cluster had both positive and negative examples.")
+
+    macro_auprc = float(np.mean([metrics["auprc"] for metrics in per_cluster.values()]))
+
+    return {
+        "score": macro_auprc,
+        "primary_metric": "macro_cluster_auprc",
+        "per_cluster": per_cluster,
+    }
+
+
+def main() -&gt; None:
+    parser = argparse.ArgumentParser()
+    parser.add_argument("--submission", required=True)
+    parser.add_argument("--labels", required=True)
+    args = parser.parse_args()
+
+    result = score_submission(args.submission, args.labels)
+    print(json.dumps(result, indent=2, sort_keys=True))
+
+
+if __name__ == "__main__":
+    main()</code></pre>
+
+  <h2>Example Output</h2>
+  <pre><code>{
+  "primary_metric": "macro_cluster_auprc",
+  "score": 0.4217,
+  "per_cluster": {
+    "anvil": {
+      "auprc": 0.5124,
+      "auroc": 0.7811,
+      "n_rows": 12000,
+      "positive_rate": 0.083
+    },
+    "cluster_b": {
+      "auprc": 0.3310,
+      "auroc": 0.7025,
+      "n_rows": 8000,
+      "positive_rate": 0.061
+    }
+  }
+}</code></pre>
+
+  <h2>Notes for Organizers</h2>
+  <ul>
+    <li>Keep <code>hidden_labels.csv</code> private.</li>
+    <li>Use a temporal split within each cluster to reduce leakage from future jobs.</li>
+    <li>Provide a <code>sample_submission.csv</code> so teams can match the required format.</li>
+    <li>Consider publishing per-cluster public validation scores, but reserve hidden test labels for final ranking.</li>
+  </ul>
+</div></body></html>

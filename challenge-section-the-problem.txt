@@ -1,0 +1,18 @@
+The Problem
+
+The dataset captures resource usage and job metadata across multiple high-performance computing systems. Each job has an eventual outcome, such as completed, failed, timed out, cancelled, or node failure. For this challenge, the core prediction task is to identify jobs that will fail or time out.
+
+Participants must predict a binary label:
+
+- 0: the job completed successfully
+- 1: the job failed or timed out
+
+For each test example, participants must submit a failure probability. A higher probability should mean the model believes the job is more likely to fail or time out.
+
+The main challenge is that participants must make predictions using early information rather than final outcome information. Features that directly reveal the future, such as final exit status or values only known after the job ends, should not be used for prediction. Strong solutions should be careful about data leakage and should explain how they limited their model to information that would be available at prediction time.
+
+The challenge also involves multiple HPC environments. Patterns that indicate failure on one cluster may not have the same meaning on another cluster. For example, memory usage, GPU activity, queue behavior, and I/O measurements can vary across systems due to hardware differences, monitoring differences, scheduler policies, and workload differences.
+
+Participants should therefore consider how to build models that handle cluster-specific behavior. Possible approaches include pooled models with cluster identifiers, cluster-specific models, feature normalization by cluster, per-cluster validation, calibrated classifiers, or ensembles that combine global and local information.
+
+The data is divided into participant, validation, and judge chunks using a temporal split. The participant chunk contains earlier data, the validation chunk contains later data, and the judge chunk contains later held-back data for final scoring. This split reduces leakage risk compared with random splitting and encourages models that generalize over time.

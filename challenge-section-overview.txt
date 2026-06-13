@@ -1,0 +1,32 @@
+Challenge Overview
+
+Welcome to the IEEE Computer Society Global Student Challenge: FRESCO Early Job Failure Prediction Challenge.
+
+In this competition, participants will work with resource-usage data from high-performance computing systems represented in the FRESCO dataset. The data includes job metadata and early resource telemetry such as CPU usage, memory usage, GPU activity, NFS traffic, block-device I/O, job timing information, requested resources, queue information, and cluster context.
+
+Your objective is to build a model that predicts whether a running or recently started job will later fail or time out. In other words, participants will use early job information to produce a failure-risk probability for each test example.
+
+This is a binary classification and early-warning challenge:
+
+- 0: the job completed successfully
+- 1: the job failed or timed out
+
+The goal is not simply to identify failed jobs after the fact. The goal is to use early metadata and telemetry signals to estimate risk before the final job outcome is known. Strong solutions should therefore think carefully about which information would realistically be available early in a job's lifetime and avoid relying on fields that reveal the final outcome.
+
+The challenge is built around heterogeneous HPC environments. A pattern that is predictive on one cluster may not mean exactly the same thing on another cluster because systems can differ in hardware, scheduler behavior, monitoring tools, user communities, and measurement semantics. Participants are encouraged to develop approaches that are cluster-aware, robust, and carefully validated.
+
+Participants may use a wide range of supervised learning methods, including logistic regression, random forests, gradient boosting, calibrated classifiers, cluster-specific models, pooled multi-cluster models, ensembles, or neural models where appropriate. More complex methods are welcome, but they should be justified by the data and validated carefully. A simple, well-designed model with strong validation may be more effective than an unnecessarily complicated one.
+
+The data is split temporally to reduce leakage. The participant data contains earlier time periods and is released when the challenge begins. A smaller validation chunk is released later so teams can test their approaches on newer data. A final judge chunk is held back and used only for final scoring. This temporal structure is intended to make the task more realistic: teams must build models that generalize to later jobs rather than memorizing patterns from randomly mixed records.
+
+At a high level, the challenge data is organized as follows:
+
+- participant chunk: released to competitors at the start of the challenge
+- validation chunk: released to competitors one week before submissions are due
+- judge chunk: held back for final judging only
+
+The final automated score is expected to be based on the quality of each team's predicted failure probabilities on the hidden judge set. Because the dataset includes multiple clusters, the primary metric is expected to reward performance across clusters rather than allowing one large cluster to dominate the score.
+
+Successful teams will submit predicted failure probabilities for the test examples and provide supporting materials that explain how those predictions were generated. The best submissions will combine accurate predictions with thoughtful feature construction, leakage-aware validation, clear handling of cluster differences, and reproducible code.
+
+In short: use early FRESCO job metadata and telemetry to build a cluster-aware model that predicts which HPC jobs are likely to fail or time out.

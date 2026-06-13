@@ -1,0 +1,84 @@
+Techniques
+
+Participants may use a wide range of supervised learning techniques to predict job failure or timeout. The best technique will depend on the features participants construct, the amount of training data available, the degree of class imbalance, and how well the method handles cluster-specific behavior.
+
+Possible modeling approaches include:
+
+- Logistic regression: a simple and interpretable baseline for binary classification.
+- Random forests: tree-based models that can capture nonlinear relationships and feature interactions.
+- Gradient boosting: methods such as XGBoost, LightGBM, CatBoost, or scikit-learn gradient boosting are often strong choices for tabular data.
+- Calibrated classifiers: models whose predicted scores are adjusted so that output values better reflect probabilities.
+- Cluster-aware pooled models: a single model trained across clusters while using cluster identifiers or cluster-derived features.
+- Cluster-specific models: separate models trained for different clusters, queues, or system groups.
+- Ensembles: combinations of multiple models or feature sets.
+- Neural models: deep learning approaches may be used when they are practical, well validated, and appropriate for the data representation.
+
+Participants should pay close attention to class imbalance. Job failures and timeouts may be less common than successful completions, so methods such as class weighting, threshold analysis, calibration, resampling, or precision-recall validation may be useful.
+
+Participants should also consider leakage-aware feature design. Features should reflect information available early in a job's lifetime and should not directly or indirectly encode the final outcome.
+
+Because the data comes from multiple HPC environments, cluster-aware modeling is encouraged. Participants may explore per-cluster validation, cluster-specific normalization, queue-aware features, or hybrid approaches that combine global patterns with cluster-specific adjustments.
+
+Example baseline:
+
+    from sklearn.ensemble import HistGradientBoostingClassifier
+
+    features = [
+        "cluster",
+        "queue",
+        "timelimit",
+        "nhosts",
+        "ncores",
+        "early_cpuuser_mean",
+        "early_memused_max",
+        "early_nfs_mean",
+        "early_block_mean",
+    ]
+
+    model = HistGradientBoostingClassifier(random_state=0)
+    model.fit(X_train[features], y_train)
+    failure_probability = model.predict_proba(X_test[features])[:, 1]
+
+More complex techniques are welcome, but complexity alone is not the goal. Strong submissions should use methods that are appropriate for the data, validated carefully, and explained clearly.
+Techniques
+
+Participants may use a wide range of supervised learning techniques to predict job failure or timeout. The best technique will depend on the features participants construct, the amount of training data available, the degree of class imbalance, and how well the method handles cluster-specific behavior.
+
+Possible modeling approaches include:
+
+- Logistic regression: a simple and interpretable baseline for binary classification.
+- Random forests: tree-based models that can capture nonlinear relationships and feature interactions.
+- Gradient boosting: methods such as XGBoost, LightGBM, CatBoost, or scikit-learn gradient boosting are often strong choices for tabular data.
+- Calibrated classifiers: models whose predicted scores are adjusted so that output values better reflect probabilities.
+- Cluster-aware pooled models: a single model trained across clusters while using cluster identifiers or cluster-derived features.
+- Cluster-specific models: separate models trained for different clusters, queues, or system groups.
+- Ensembles: combinations of multiple models or feature sets.
+- Neural models: deep learning approaches may be used when they are practical, well validated, and appropriate for the data representation.
+
+Participants should pay close attention to class imbalance. Job failures and timeouts may be less common than successful completions, so methods such as class weighting, threshold analysis, calibration, resampling, or precision-recall validation may be useful.
+
+Participants should also consider leakage-aware feature design. Features should reflect information available early in a job's lifetime and should not directly or indirectly encode the final outcome.
+
+Because the data comes from multiple HPC environments, cluster-aware modeling is encouraged. Participants may explore per-cluster validation, cluster-specific normalization, queue-aware features, or hybrid approaches that combine global patterns with cluster-specific adjustments.
+
+Example baseline:
+
+from sklearn.ensemble import HistGradientBoostingClassifier
+
+features = [
+    "cluster",
+    "queue",
+    "timelimit",
+    "nhosts",
+    "ncores",
+    "early_cpuuser_mean",
+    "early_memused_max",
+    "early_nfs_mean",
+    "early_block_mean",
+]
+
+model = HistGradientBoostingClassifier(random_state=0)
+model.fit(X_train[features], y_train)
+failure_probability = model.predict_proba(X_test[features])[:, 1]
+
+More complex techniques are welcome, but complexity alone is not the goal. Strong submissions should use methods that are appropriate for the data, validated carefully, and explained clearly.

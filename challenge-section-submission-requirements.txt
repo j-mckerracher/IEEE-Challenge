@@ -1,0 +1,85 @@
+Submission Requirements
+
+Each team must submit a complete package containing the files listed below. File names may be adjusted by the organizers, but the submission should include these same artifacts and required fields.
+
+Required files:
+
+1. Prediction CSV
+2. Reproducible code or notebook
+3. Short methodology report
+
+1. Prediction CSV
+
+Each team must submit a CSV file containing one prediction for every row in the official test set. Recommended file name: submission.csv.
+
+The CSV must include the following columns:
+
+- row_id
+- failure_probability
+
+The row_id column must exactly match the identifiers provided in the test set or sample submission file. Each row_id must appear exactly once. The file should not contain missing row_id values, duplicate row_id values, or extra row_id values not present in the official test set.
+
+The failure_probability column must contain a numeric value between 0 and 1, inclusive. Higher values should indicate a higher predicted probability that the job will fail or time out. For example, a value of 0.90 should indicate that the model believes the job is much more likely to fail or time out than a job with a value of 0.10.
+
+The prediction CSV should follow this format:
+
+row_id,failure_probability
+test_000001,0.734
+test_000002,0.081
+test_000003,0.412
+
+Participants should not include the true label, cluster label, or any other hidden evaluation information in the prediction CSV unless specifically instructed by the organizers.
+
+
+2. Reproducible Code or Notebook
+
+Each team must submit the code used to generate its predictions. This may be provided as a Python script, a small Python package, or a Jupyter notebook. Recommended file names include train.py, predict.py, solution.ipynb, or a clearly named source directory.
+
+The submitted code should make clear how the prediction CSV was produced. It should include:
+
+- data loading
+- preprocessing
+- feature construction
+- model training
+- validation or model selection
+- test-set prediction generation
+- export of the final prediction CSV
+
+The code should be clear, organized, and reasonably modular. Participants should avoid submitting only isolated fragments or unexplained cells that cannot be followed by a reviewer.
+
+If the solution requires external Python packages beyond the standard scientific Python stack, participants should provide a requirements file or clearly list those dependencies. Recommended file name: requirements.txt.
+
+If the solution uses multiple files, participants should organize them in a clear directory structure and include any helper modules needed to run the code.
+
+
+3. Short Methodology Report
+
+Each team must submit a short report explaining the approach used to produce the predictions. Recommended file names include report.pdf, report.md, or report.txt.
+
+The report should include:
+
+- the main modeling approach
+- the features used
+- how early job metadata and telemetry were transformed into model inputs
+- how the team handled class imbalance
+- how the team validated the model before submitting
+- how the team avoided data leakage
+- how the team handled cluster-specific differences
+- any calibration, ensembling, or post-processing steps
+- any creative, advanced, or unusual techniques used
+- the team's most important validation results
+
+The report should be concise and readable. It does not need to include full source code, but it should provide enough detail for a reviewer to understand what was submitted and how the prediction file was generated.
+
+Submission Checklist
+
+Before submitting, each team should confirm that:
+
+- The prediction CSV contains row_id and failure_probability.
+- Every test row_id appears exactly once.
+- No row_id values are missing, duplicated, or unexpected.
+- All failure_probability values are between 0 and 1.
+- The code or notebook explains how the predictions were generated.
+- Any required helper files or dependency files are included.
+- The report describes the submitted approach.
+- The submitted files are organized and named clearly.

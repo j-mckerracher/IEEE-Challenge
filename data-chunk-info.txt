@@ -1,0 +1,153 @@
+IEEE Computer Society Global Student Challenge Data Chunk Info
+Created: 2026-06-10
+
+This file documents how the extracted FRESCO Parquet data was divided into the
+three challenge chunks:
+
+1. participant
+   Released to competitors when the challenge starts.
+
+2. validation
+   Released to competitors one week before submissions are due.
+
+3. judge
+   Held back for final judging only. Competitors should never receive this set.
+
+
+Split principle
+---------------
+
+The data was split temporally by month and cluster/file group. The goal was to
+keep the public participant data earlier in time, the validation data later in
+time, and the final judging data later still. This reduces leakage risk compared
+with random file-level splitting.
+
+The split also avoids very sparse or unusual months. Those files were left in:
+
+fresco-data-6-9-26\unzipped-data
+
+
+Final file counts
+-----------------
+
+participant: 46,795 Parquet files
+validation:   4,414 Parquet files
+judge:        6,539 Parquet files
+
+quarantined / not assigned: 4,091 Parquet files
+
+
+Participant chunk
+-----------------
+
+Folder:
+
+participant
+
+Included data:
+
+S-suffix files:
+2013-02 through 2016-12
+
+C-suffix files:
+2015-05 through 2016-12
+
+No-suffix files:
+2022-07 through 2023-02
+
+Excluded from participant even though they are earlier:
+2015-04 C
+2015-07 C
+2016-05 C
+2022-06 no-suffix
+
+These were excluded because they were sparse or unusual relative to the rest of
+their surrounding data.
+
+
+Validation chunk
+----------------
+
+Folder:
+
+validation
+
+Included data:
+
+S-suffix files:
+2017-01 through 2017-03
+
+C-suffix files:
+2017-01 through 2017-03
+
+No-suffix files:
+2023-03
+
+The validation chunk is intentionally smaller than the participant chunk. That is
+acceptable because validation does not need to contain as many rows as the initial
+training/release data. It should still contain enough labeled jobs and enough
+failure/timeout examples to make the validation score meaningful.
+
+
+Judge chunk
+-----------
+
+Folder:
+
+judge
+
+Included data:
+
+S-suffix files:
+2017-04 through 2017-08
+
+C-suffix files:
+2017-04 through 2017-06
+
+No-suffix files:
+2023-04 through 2023-05
+
+This chunk is reserved for final scoring only.
+
+
+Quarantined data
+----------------
+
+Folder:
+
+fresco-data-6-9-26\unzipped-data
+
+The following sparse, incomplete, or unusual periods were intentionally left out
+of the three release/judging chunks:
+
+S-suffix files:
+2017-09 through 2018-04
+
+C-suffix files:
+2015-04
+2015-07
+2016-05
+
+No-suffix files:
+2022-06
+2023-06
+
+
+Notes
+-----
+
+The split was based on hourly Parquet file names and monthly coverage. For final
+challenge packaging, the downstream train/validation/test examples should still
+be constructed at the job level so that the same job cannot leak across chunks.
+
+Observed outcome labels include:
+
+COMPLETED
+FAILED
+TIMEOUT
+CANCELLED
+NODE_FAIL
+
+The challenge wording currently focuses on predicting FAILED or TIMEOUT jobs.
+Before final packaging, decide whether CANCELLED and NODE_FAIL should be excluded,
+treated as separate non-success outcomes, or folded into the positive class.

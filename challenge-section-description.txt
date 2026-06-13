@@ -1,0 +1,11 @@
+Description
+
+In this competition, participants are challenged to predict early job failures in high-performance computing systems using the FRESCO dataset. The data captures job metadata and resource-usage telemetry from multiple supercomputing environments, including CPU usage, memory usage, GPU activity, NFS traffic, block-device I/O, job timing fields, requested resources, queue information, and cluster context.
+
+The task is to build a model that estimates whether a job will later fail or time out based on information available early in the job's lifetime. Each prediction should be a probability between 0 and 1, where higher values indicate a greater risk of failure or timeout.
+
+Unlike a simple after-the-fact classification problem, this challenge is focused on early warning. Participants should design features and models that reflect information that would realistically be available before the final job outcome is known.
+
+The challenge uses data from multiple clusters and time periods. Because different HPC systems can vary in hardware, scheduler behavior, monitoring tools, workload mix, and measurement semantics, strong solutions should be robust to cluster-specific differences. Participants are encouraged to think carefully about how to use cluster context without overfitting to a single system or time period.
+
+The data is split temporally. Earlier data is released to participants at the start of the challenge, a later validation chunk is released before submissions are due, and the final judge chunk is held back for final scoring only. This structure is intended to reward models that generalize to later jobs rather than memorizing patterns from randomly mixed records.

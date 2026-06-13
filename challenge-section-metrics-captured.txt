@@ -1,0 +1,40 @@
+Metrics Captured
+
+The FRESCO data contains job metadata, timing information, host and cluster context, and resource-usage telemetry. The exact feature set provided to participants may be derived from the raw telemetry, but the source data includes fields such as:
+
+- time: timestamp for the telemetry record
+- submit_time: time when the job was submitted
+- start_time: time when the job started
+- end_time: time when the job ended
+- timelimit: requested walltime limit
+- nhosts: number of requested or allocated hosts
+- ncores: number of requested or allocated CPU cores
+- account: anonymized account or allocation field
+- queue: scheduler queue or partition
+- host: host machine identifier
+- jid: job identifier
+- unit: measurement unit or telemetry source field
+- jobname: anonymized job name field, when available
+- username: anonymized user identifier, when available
+- host_list: allocated host list, when available
+- exitcode: final job outcome field used by organizers to construct labels
+- value_cpuuser: CPU user-mode activity
+- value_gpu: GPU active time percentage, when available
+- value_memused: physical memory usage
+- value_memused_minus_diskcache: physical memory usage excluding disk cache, when available
+- value_nfs: data-transfer rate over NFS mounts
+- value_block: data-transfer rate to or from block devices
+
+The prediction task is based on early job information. Participant-ready files may include engineered job-level features derived from early telemetry windows rather than every raw telemetry row. For example, these features may include early means, maximums, trends, counts, or other summaries of CPU, memory, GPU, NFS, and block I/O activity.
+
+The final label is constructed from job outcome information. Participants should not use final outcome fields directly as prediction features. Outcome fields such as exitcode are included here to explain the source data, but hidden labels used for scoring will be held by the organizers.
+
+Observed job outcomes in the source data include:
+
+- COMPLETED
+- FAILED
+- TIMEOUT
+- CANCELLED
+- NODE_FAIL
+
+The current challenge framing focuses on predicting FAILED or TIMEOUT jobs as the positive class.
